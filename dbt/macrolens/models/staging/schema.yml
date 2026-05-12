@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: stg_sector_prices
+    description: "Cleaned daily sector ETF prices from Alpha Vantage"
+    columns:
+      - name: symbol
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null
+      - name: close
+        tests:
+          - not_null
+
+  - name: stg_macro_indicators
+    description: "Cleaned macroeconomic indicators from FRED"
+    columns:
+      - name: series_id
+        tests:
+          - not_null
+      - name: indicator
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['fed_funds_rate', 'cpi', 'unemployment_rate', 'yield_spread_10y2y', 'gdp']
+      - name: date
+        tests:
+          - not_null
+      - name: value
+        tests:
+          - not_null
