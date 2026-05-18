@@ -1,3 +1,24 @@
+"""
+Alpha Vantage Ingestion
+=======================
+
+Pulls daily OHLCV price data for 11 S&P 500 sector ETFs from the
+Alpha Vantage API and loads it into the raw_sector_prices table in PostgreSQL.
+
+Sector ETFs tracked:
+- XLK (Technology), XLF (Financials), XLV (Healthcare), XLE (Energy)
+- XLI (Industrials), XLP (Consumer Staples), XLY (Consumer Discretionary)
+- XLU (Utilities), XLB (Materials), XLRE (Real Estate), XLC (Communication Services)
+
+Rate limits:
+- Free tier: 25 requests/day
+- Script sleeps 12 seconds between symbols to stay within limits
+- ON CONFLICT DO NOTHING handles duplicate runs safely
+
+Dependencies:
+- requests, pandas, psycopg2, python-dotenv
+"""
+
 import os
 import requests
 import pandas as pd
@@ -11,7 +32,7 @@ load_dotenv()
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 BASE_URL = "https://www.alphavantage.co/query"
 
-# S&P 500 sector ETFs
+# S&P 500 sector ETFs — one per GICS sector
 SECTOR_ETFS = {
     "XLK": "Technology",
     "XLF": "Financials",
@@ -28,7 +49,24 @@ SECTOR_ETFS = {
 
 
 def fetch_daily_prices(symbol: str) -> pd.DataFrame:
-    """Fetch daily adjusted prices for a single ETF symbol."""
+    """
+    Fetch daily adjusted prices for a single ETF symbol.
+
+    Uses TIME_SERIES_DAILY with outputsize=compact to get the last
+    100 trading days. Raises ValueError if the API returns an unexpected
+    response (e.g. rate limit hit or invalid symbol).
+
+    Parameters
+    ----------
+    symbol : str
+        ETF ticker symbol (e.g. 'XLK')
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: symbol, sector, date, open, high, low, close, volume, ingested_at
+        Sorted ascending by date.
+    """
     params = {
         "function": "TIME_SERIES_DAILY",
         "symbol": symbol,
@@ -66,7 +104,18 @@ def fetch_daily_prices(symbol: str) -> pd.DataFrame:
 
 
 def fetch_all_sectors() -> pd.DataFrame:
-    """Fetch daily prices for all sector ETFs and combine into one DataFrame."""
+    """
+    Fetch daily prices for all sector ETFs and combine into one DataFrame.
+
+    Sleeps 12 seconds between each request to respect the free tier
+    rate limit of 25 requests/day. Logs errors per symbol but continues
+    fetching remaining symbols if one fails.
+
+    Returns
+    -------
+    pd.DataFrame
+        Combined price data for all successfully fetched symbols.
+    """
     all_dfs = []
 
     for symbol in SECTOR_ETFS:
@@ -82,7 +131,17 @@ def fetch_all_sectors() -> pd.DataFrame:
 
 
 def load_to_postgres(df: pd.DataFrame) -> None:
-    """Load sector prices DataFrame into raw_sector_prices table."""
+    """
+    Load sector prices DataFrame into the raw_sector_prices table.
+
+    Uses ON CONFLICT DO NOTHING on (symbol, date) to safely handle
+    duplicate runs without raising errors or overwriting existing data.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame returned by fetch_daily_prices or fetch_all_sectors.
+    """
     import psycopg2
 
     conn = psycopg2.connect(

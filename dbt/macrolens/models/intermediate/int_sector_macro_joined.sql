@@ -1,3 +1,34 @@
+{#
+  int_sector_macro_joined
+  =======================
+  Joins daily sector ETF prices to macroeconomic indicators by nearest
+  available observation date.
+
+  Sources:
+  - stg_sector_prices     : daily OHLCV data per ETF symbol
+  - stg_macro_indicators  : FRED macro indicators (mixed frequencies)
+
+  The challenge: macro indicators are released at different frequencies
+  (monthly for Fed Funds Rate/CPI/unemployment, daily for yield spread,
+  quarterly for GDP). This model handles the frequency mismatch in two steps:
+
+  Step 1 — macro_wide:
+    Pivots the long-format indicator table into wide format so each
+    date has one row with all indicators as columns.
+
+  Step 2 — macro_filled:
+    Forward-fills null values using lag() + coalesce() so that monthly
+    and quarterly indicators propagate across daily trading dates.
+    Without this, most trading days would have null macro values.
+
+  Step 3 — joined:
+    Left joins sector prices to the forward-filled macro table using a
+    nearest-date subquery — for each trading day, finds the most recent
+    macro observation on or before that date.
+
+  Materialized as: view
+#}
+
 with sector_prices as (
     select * from {{ ref('stg_sector_prices') }}
 ),
@@ -6,6 +37,7 @@ macro_indicators as (
     select * from {{ ref('stg_macro_indicators') }}
 ),
 
+-- Pivot long-format indicators into wide format (one row per date)
 macro_wide as (
     select
         date,
@@ -18,6 +50,7 @@ macro_wide as (
     group by date
 ),
 
+-- Forward-fill nulls so monthly/quarterly values propagate to daily dates
 macro_filled as (
     select
         date,
@@ -29,6 +62,7 @@ macro_filled as (
     from macro_wide
 ),
 
+-- Join sector prices to nearest available macro observation date
 joined as (
     select
         sp.symbol,
@@ -48,6 +82,7 @@ joined as (
     from sector_prices sp
     left join macro_filled mf
         on mf.date = (
+            -- For each trading day, find the most recent macro date on or before it
             select max(m.date)
             from macro_filled m
             where m.date <= sp.date
