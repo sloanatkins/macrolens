@@ -7,8 +7,8 @@ with_regime as (
     select
         *,
         case
-            when fed_funds_rate >= 4.0 and yield_spread_10y2y < 0 then 'restrictive'
-            when fed_funds_rate >= 4.0 and yield_spread_10y2y >= 0 then 'tightening'
+            when fed_funds_rate >= 5.0 and yield_spread_10y2y < 0 then 'restrictive'
+            when fed_funds_rate >= 3.5 and yield_spread_10y2y >= 0 then 'tightening'
             when fed_funds_rate < 2.0 and yield_spread_10y2y >= 0 then 'expansionary'
             when fed_funds_rate < 2.0 and yield_spread_10y2y < 0 then 'recovery'
             else 'neutral'

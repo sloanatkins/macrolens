@@ -6,7 +6,6 @@ macro_indicators as (
     select * from {{ ref('stg_macro_indicators') }}
 ),
 
--- Pivot macro indicators to wide format for joining
 macro_wide as (
     select
         date,
@@ -19,7 +18,17 @@ macro_wide as (
     group by date
 ),
 
--- Join sector prices to nearest macro date
+macro_filled as (
+    select
+        date,
+        coalesce(fed_funds_rate, lag(fed_funds_rate) over (order by date)) as fed_funds_rate,
+        coalesce(cpi, lag(cpi) over (order by date)) as cpi,
+        coalesce(unemployment_rate, lag(unemployment_rate) over (order by date)) as unemployment_rate,
+        coalesce(yield_spread_10y2y, lag(yield_spread_10y2y) over (order by date)) as yield_spread_10y2y,
+        coalesce(gdp, lag(gdp) over (order by date)) as gdp
+    from macro_wide
+),
+
 joined as (
     select
         sp.symbol,
@@ -31,16 +40,16 @@ joined as (
         sp.close,
         sp.volume,
         sp.daily_return_pct,
-        mw.fed_funds_rate,
-        mw.cpi,
-        mw.unemployment_rate,
-        mw.yield_spread_10y2y,
-        mw.gdp
+        mf.fed_funds_rate,
+        mf.cpi,
+        mf.unemployment_rate,
+        mf.yield_spread_10y2y,
+        mf.gdp
     from sector_prices sp
-    left join macro_wide mw
-        on mw.date = (
+    left join macro_filled mf
+        on mf.date = (
             select max(m.date)
-            from macro_wide m
+            from macro_filled m
             where m.date <= sp.date
         )
 )
