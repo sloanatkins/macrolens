@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: macrolens
+    database: macrolens
+    schema: public
+    tables:
+      - name: raw_sector_prices
+        description: "Raw daily sector ETF prices from Alpha Vantage"
+      - name: raw_macro_indicators
+        description: "Raw macroeconomic indicators from FRED"
