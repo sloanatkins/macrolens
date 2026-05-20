@@ -81,8 +81,46 @@ def fetch_all_sectors() -> pd.DataFrame:
     return pd.concat(all_dfs, ignore_index=True)
 
 
+def load_to_postgres(df: pd.DataFrame) -> None:
+    """Load sector prices DataFrame into raw_sector_prices table."""
+    import psycopg2
+
+    conn = psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", 5432),
+        dbname=os.getenv("POSTGRES_DB", "macrolens"),
+        user=os.getenv("POSTGRES_USER", os.environ.get("USER")),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+    )
+
+    with conn.cursor() as cur:
+        for _, row in df.iterrows():
+            cur.execute("""
+                INSERT INTO raw_sector_prices
+                    (symbol, sector, date, open, high, low, close, volume, ingested_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, date) DO NOTHING;
+            """, (
+                row["symbol"],
+                row["sector"],
+                row["date"].date(),
+                row["open"],
+                row["high"],
+                row["low"],
+                row["close"],
+                row["volume"],
+                row["ingested_at"],
+            ))
+
+    conn.commit()
+    conn.close()
+    print(f"Loaded {len(df)} rows into raw_sector_prices.")
+
 
 if __name__ == "__main__":
-    df = fetch_all_sectors()
+    # Test with one symbol to stay within rate limits
+    print("Fetching XLK...")
+    df = fetch_daily_prices("XLK")
     print(df.head())
-    print(f"\nTotal rows: {len(df)}")
+    print(f"Rows fetched: {len(df)}")
+    load_to_postgres(df)
