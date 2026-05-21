@@ -118,9 +118,7 @@ def load_to_postgres(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    # Test with one symbol to stay within rate limits
-    print("Fetching XLK...")
-    df = fetch_daily_prices("XLK")
+    df = fetch_all_sectors()
     print(df.head())
-    print(f"Rows fetched: {len(df)}")
+    print(f"\nTotal rows: {len(df)}")
     load_to_postgres(df)
