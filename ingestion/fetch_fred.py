@@ -38,9 +38,9 @@ FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
 FRED_SERIES = {
     "FEDFUNDS": "fed_funds_rate",
     "CPIAUCSL": "cpi",
-    "UNRATE":   "unemployment_rate",
-    "T10Y2Y":   "yield_spread_10y2y",
-    "GDP":      "gdp",
+    "UNRATE": "unemployment_rate",
+    "T10Y2Y": "yield_spread_10y2y",
+    "GDP": "gdp",
 }
 
 

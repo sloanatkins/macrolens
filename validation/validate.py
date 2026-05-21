@@ -20,7 +20,6 @@ Dependencies:
 
 import os
 import psycopg2
-import pandas as pd
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
