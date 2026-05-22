@@ -1,45 +1,146 @@
-Overview
-========
+# MacroLens: S&P 500 Sector Intelligence Pipeline
 
-Welcome to Astronomer! This project was generated after you ran 'astro dev init' using the Astronomer CLI. This readme describes the contents of the project, as well as how to run Apache Airflow on your local machine.
+A production-style batch data pipeline that ingests daily S&P 500 sector ETF prices and Federal Reserve macroeconomic indicators, models them in a local data warehouse using dbt, and surfaces sector performance patterns across macro regimes in an interactive Streamlit dashboard.
 
-Project Contents
-================
+Built as Project 1 of a data engineering portfolio targeting summer 2026 internships.
 
-Your Astro project contains the following files and folders:
+---
 
-- dags: This folder contains the Python files for your Airflow DAGs. By default, this directory includes one example DAG:
-    - `example_astronauts`: This DAG shows a simple ETL pipeline example that queries the list of astronauts currently in space from the Open Notify API and prints a statement for each astronaut. The DAG uses the TaskFlow API to define tasks in Python, and dynamic task mapping to dynamically print a statement for each astronaut. For more on how this DAG works, see our [Getting started tutorial](https://www.astronomer.io/docs/learn/get-started-with-airflow).
-- Dockerfile: This file contains a versioned Astro Runtime Docker image that provides a differentiated Airflow experience. If you want to execute other commands or overrides at runtime, specify them here.
-- include: This folder contains any additional files that you want to include as part of your project. It is empty by default.
-- packages.txt: Install OS-level packages needed for your project by adding them to this file. It is empty by default.
-- requirements.txt: Install Python packages needed for your project by adding them to this file. It is empty by default.
-- plugins: Add custom or community plugins for your project to this file. It is empty by default.
-- airflow_settings.yaml: Use this local-only file to specify Airflow Connections, Variables, and Pools instead of entering them in the Airflow UI as you develop DAGs in this project.
+## Architecture
 
-Deploy Your Project Locally
-===========================
+    Alpha Vantage API --> Python Ingestion --> PostgreSQL (raw) --> dbt Models --> Streamlit Dashboard
+    FRED API          -->                  -->                  -->
+                                  ^
+                        Airflow DAG (6am weekdays)
+                        Validation Layer (logged to DB)
 
-Start Airflow on your local machine by running 'astro dev start'.
+---
 
-This command will spin up five Docker containers on your machine, each for a different Airflow component:
+## Tech Stack
 
-- Postgres: Airflow's Metadata Database
-- Scheduler: The Airflow component responsible for monitoring and triggering tasks
-- DAG Processor: The Airflow component responsible for parsing DAGs
-- API Server: The Airflow component responsible for serving the Airflow UI and API
-- Triggerer: The Airflow component responsible for triggering deferred tasks
+| Layer | Tools |
+|---|---|
+| Ingestion | Python, requests, pandas |
+| Orchestration | Apache Airflow (Astronomer CLI) |
+| Storage | PostgreSQL |
+| Transformation | dbt (staging to intermediate to mart) |
+| Data Quality | Custom validation layer with DB logging |
+| Dashboard | Streamlit, Plotly |
+| Containerization | Docker, docker-compose |
+| CI/CD | GitHub Actions |
 
-When all five containers are ready the command will open the browser to the Airflow UI at http://localhost:8080/. You should also be able to access your Postgres Database at 'localhost:5432/postgres' with username 'postgres' and password 'postgres'.
+---
 
-Note: If you already have either of the above ports allocated, you can either [stop your existing Docker containers or change the port](https://www.astronomer.io/docs/astro/cli/troubleshoot-locally#ports-are-not-available-for-my-local-airflow-webserver).
+## Data Sources
 
-Deploy Your Project to Astronomer
-=================================
+- **Alpha Vantage** - Daily OHLCV prices for 11 S&P 500 sector ETFs: XLK, XLF, XLV, XLE, XLI, XLP, XLY, XLU, XLB, XLRE, XLC
+- **FRED** - 5 macroeconomic indicators going back to 2010: Fed Funds Rate, CPI, Unemployment Rate, 10Y-2Y Yield Spread, GDP
 
-If you have an Astronomer account, pushing code to a Deployment on Astronomer is simple. For deploying instructions, refer to Astronomer documentation: https://www.astronomer.io/docs/astro/deploy-code/
+---
 
-Contact
-=======
+## Pipeline Stages
 
-The Astronomer CLI is maintained with love by the Astronomer team. To report a bug or suggest a change, reach out to our support.
+1. **Ingest** - Python scripts pull from Alpha Vantage and FRED APIs on a schedule
+2. **Validate** - Row count, null, and range checks run before loading, logged to validation_log
+3. **Load** - Raw data lands in PostgreSQL with ON CONFLICT DO NOTHING deduplication
+4. **Transform** - dbt models clean, join, and aggregate across three layers
+5. **Schedule** - Airflow DAG runs every weekday at 6am with 2 retries and failure handling
+6. **Visualize** - Streamlit dashboard with Plotly charts, sidebar filters, and date range picker
+
+---
+
+## dbt Model Layers
+
+    models/
+    staging/
+        stg_sector_prices.sql         cleans raw ETF prices, calculates daily_return_pct
+        stg_macro_indicators.sql      cleans FRED indicators, filters nulls
+    intermediate/
+        int_sector_macro_joined.sql   joins sector prices to nearest macro observation date
+    mart/
+        mart_sector_performance.sql   macro regime labels + 30-day rolling returns
+
+---
+
+## Macro Regime Classification
+
+| Regime | Condition |
+|---|---|
+| Restrictive | Fed rate >= 4% and yield spread < 0 |
+| Tightening | Fed rate >= 4% and yield spread >= 0 |
+| Expansionary | Fed rate < 2% and yield spread >= 0 |
+| Recovery | Fed rate < 2% and yield spread < 0 |
+| Neutral | All other conditions |
+
+---
+
+## Key Insights
+
+- Technology and Materials led 30-day rolling returns during the neutral macro regime from December 2025 through May 2026, while Utilities and Consumer Staples consistently lagged
+- The yield spread remained positive throughout the observed period (0.5-1.0%), signaling no inversion despite a Fed Funds Rate near 4.3%, consistent with a soft landing scenario
+- Sector return dispersion peaked in January 2026, with a 1.2% spread between the best and worst performing sectors, suggesting macro uncertainty was driving rotation
+- Energy was the most volatile sector on a 30-day rolling basis, consistent with its sensitivity to oil price swings and geopolitical factors
+
+---
+
+## How to Run
+
+Prerequisites: Docker Desktop, Python 3.11+, Alpha Vantage API key from alphavantage.co, FRED API key from fred.stlouisfed.org
+
+Setup:
+
+    git clone https://github.com/sloanatkins/macrolens.git
+    cd macrolens
+    cp .env.example .env
+
+Run the dashboard via Docker:
+
+    docker-compose up --build
+
+Dashboard available at localhost:8501
+
+Run the pipeline manually:
+
+    python ingestion/fetch_fred.py
+    python ingestion/fetch_alpha_vantage.py
+    python validation/validate.py
+
+Run dbt transforms:
+
+    cd dbt/macrolens
+    dbt run
+    dbt test
+
+Run tests:
+
+    pytest tests/test_ingestion.py -v
+
+---
+
+## Project Structure
+
+    macrolens/
+    .github/workflows/       GitHub Actions CI
+    dags/                    Airflow DAG
+    dashboard/               Streamlit app + Dockerfile
+    dbt/macrolens/           dbt project
+        models/
+            staging/
+            intermediate/
+            mart/
+    ingestion/               Alpha Vantage + FRED scripts
+    scripts/                 DB initialization
+    tests/                   pytest unit tests
+    validation/              Data quality checks
+    .env.example
+    docker-compose.yml
+
+---
+
+## CI/CD
+
+GitHub Actions runs on every push to main. Installs dependencies, lints with flake8, runs pytest.
+
+---
+
+Built with Python, Airflow, dbt, PostgreSQL, Streamlit, Docker, GitHub Actions
