@@ -1,0 +1,13 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - POSTGRES_HOST=host.docker.internal
+      - POSTGRES_USER=sloanatkins
+      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=macrolens
+      - POSTGRES_PORT=5432

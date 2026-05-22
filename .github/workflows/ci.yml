@@ -1,0 +1,32 @@
+name: MacroLens CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install flake8 pytest requests pandas python-dotenv psycopg2-binary boto3
+
+      - name: Lint with flake8
+        run: |
+          flake8 ingestion/ validation/ scripts/ --max-line-length=120 --ignore=E501,W503
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --ignore=tests/dags
