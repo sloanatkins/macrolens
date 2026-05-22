@@ -76,10 +76,11 @@ Built as Project 1 of a data engineering portfolio targeting summer 2026 interns
 
 ## Key Insights
 
-- Technology and Materials led 30-day rolling returns during the neutral macro regime from December 2025 through May 2026, while Utilities and Consumer Staples consistently lagged
-- The yield spread remained positive throughout the observed period (0.5-1.0%), signaling no inversion despite a Fed Funds Rate near 4.3%, consistent with a soft landing scenario
-- Sector return dispersion peaked in January 2026, with a 1.2% spread between the best and worst performing sectors, suggesting macro uncertainty was driving rotation
-- Energy was the most volatile sector on a 30-day rolling basis, consistent with its sensitivity to oil price swings and geopolitical factors
+- During the tightening regime (December 2025 - March 2026, Fed rate >= 3.5%), Consumer Discretionary and Industrials outperformed while Technology and Healthcare saw negative 30-day rolling returns, consistent with rate-sensitive growth sectors underperforming in elevated rate environments
+- The yield spread remained positive throughout the observed period (0.5-1.0%), signaling no inversion despite elevated Fed rates near 3.6-4.3%, consistent with a soft landing scenario
+- Sector return dispersion was highest in January 2026, with a ~1.2% spread between the best and worst performing sectors, suggesting macro uncertainty was driving rotation
+- Energy was the most volatile sector on a 30-day rolling basis across both regimes, consistent with its sensitivity to oil price swings and geopolitical factors
+- The pipeline classifies each trading day into one of five macro regimes based on Fed Funds Rate and 10Y-2Y yield spread, enabling direct comparison of sector behavior across different monetary policy environments
 
 ---
 
