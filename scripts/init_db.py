@@ -1,10 +1,31 @@
+"""
+Database Initialization
+=======================
+
+Creates the raw PostgreSQL tables used by the MacroLens pipeline.
+Run this once before the first pipeline execution to set up the schema.
+
+Tables created:
+- raw_sector_prices    : daily OHLCV prices per sector ETF from Alpha Vantage
+- raw_macro_indicators : macroeconomic indicator observations from FRED
+- validation_log       : audit trail of all data quality check results
+
+All tables use IF NOT EXISTS so this script is safe to re-run without
+dropping existing data.
+
+Dependencies:
+- psycopg2, python-dotenv
+"""
+
 import os
 import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def get_connection():
+    """Return a psycopg2 connection using environment variables."""
     return psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", 5432),
@@ -15,7 +36,29 @@ def get_connection():
 
 
 def create_tables(conn):
+    """
+    Create all pipeline tables if they do not already exist.
+
+    raw_sector_prices:
+        Stores daily OHLCV price data per ETF symbol. Unique constraint
+        on (symbol, date) prevents duplicate ingestion runs from
+        inserting duplicate rows.
+
+    raw_macro_indicators:
+        Stores FRED time series observations. Unique constraint on
+        (series_id, date) prevents duplicates across runs.
+
+    validation_log:
+        Append-only audit log. Every validation check writes one row
+        with its table name, check name, status, and message.
+
+    Parameters
+    ----------
+    conn : psycopg2 connection
+    """
     with conn.cursor() as cur:
+
+        # Daily ETF price data — one row per symbol per trading day
         cur.execute("""
             CREATE TABLE IF NOT EXISTS raw_sector_prices (
                 id              SERIAL PRIMARY KEY,
@@ -32,6 +75,7 @@ def create_tables(conn):
             );
         """)
 
+        # FRED macroeconomic observations — one row per series per date
         cur.execute("""
             CREATE TABLE IF NOT EXISTS raw_macro_indicators (
                 id              SERIAL PRIMARY KEY,
@@ -44,6 +88,7 @@ def create_tables(conn):
             );
         """)
 
+        # Validation audit log — append-only, never updated
         cur.execute("""
             CREATE TABLE IF NOT EXISTS validation_log (
                 id              SERIAL PRIMARY KEY,

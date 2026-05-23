@@ -1,3 +1,28 @@
+"""
+FRED Macroeconomic Indicator Ingestion
+=======================================
+
+Pulls macroeconomic time series data from the Federal Reserve Economic
+Data (FRED) API and loads it into the raw_macro_indicators table in PostgreSQL.
+
+Indicators fetched:
+- FEDFUNDS : Federal Funds Rate (monthly)
+- CPIAUCSL : Consumer Price Index — All Urban Consumers (monthly)
+- UNRATE   : Unemployment Rate (monthly)
+- T10Y2Y   : 10-Year minus 2-Year Treasury Yield Spread (daily)
+- GDP      : Gross Domestic Product (quarterly)
+
+All series are fetched from 2010-01-01 to present. FRED uses "." to
+represent missing observations — these are filtered out before loading.
+
+Rate limits:
+- FRED API has no meaningful rate limit for free keys
+- Script sleeps 1 second between requests as a courtesy
+
+Dependencies:
+- requests, pandas, psycopg2, python-dotenv
+"""
+
 import os
 import requests
 import pandas as pd
@@ -9,7 +34,7 @@ load_dotenv()
 
 FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
 
-# Macro indicators we want from FRED
+# FRED series IDs mapped to human-readable indicator names
 FRED_SERIES = {
     "FEDFUNDS": "fed_funds_rate",
     "CPIAUCSL": "cpi",
@@ -20,7 +45,25 @@ FRED_SERIES = {
 
 
 def fetch_fred_series(series_id: str, api_key: str) -> pd.DataFrame:
-    """Fetch a single FRED series and return as a clean DataFrame."""
+    """
+    Fetch a single FRED series and return as a clean DataFrame.
+
+    Filters out missing observations (FRED represents these as ".").
+    Raises ValueError if the API returns an unexpected response format.
+
+    Parameters
+    ----------
+    series_id : str
+        FRED series identifier (e.g. 'FEDFUNDS')
+    api_key : str
+        FRED API key loaded from environment
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: series_id, indicator, date, value, ingested_at
+        Sorted ascending by date.
+    """
     params = {
         "series_id": series_id,
         "api_key": api_key,
@@ -54,7 +97,23 @@ def fetch_fred_series(series_id: str, api_key: str) -> pd.DataFrame:
 
 
 def fetch_all_indicators(api_key: str) -> pd.DataFrame:
-    """Fetch all macro indicators and combine into one DataFrame."""
+    """
+    Fetch all macro indicators and combine into one DataFrame.
+
+    Iterates through FRED_SERIES, fetching each indicator independently.
+    Sleeps 1 second between requests as a courtesy to the API.
+    Logs errors per series but continues if one fails.
+
+    Parameters
+    ----------
+    api_key : str
+        FRED API key loaded from environment
+
+    Returns
+    -------
+    pd.DataFrame
+        Combined indicator data for all successfully fetched series.
+    """
     all_dfs = []
 
     for series_id, indicator_name in FRED_SERIES.items():
@@ -68,8 +127,19 @@ def fetch_all_indicators(api_key: str) -> pd.DataFrame:
 
     return pd.concat(all_dfs, ignore_index=True)
 
+
 def load_to_postgres(df: pd.DataFrame) -> None:
-    """Load macro indicators DataFrame into raw_macro_indicators table."""
+    """
+    Load macro indicators DataFrame into the raw_macro_indicators table.
+
+    Uses ON CONFLICT DO NOTHING on (series_id, date) to safely handle
+    duplicate runs without raising errors or overwriting existing data.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame returned by fetch_all_indicators.
+    """
     import psycopg2
 
     conn = psycopg2.connect(
@@ -98,6 +168,7 @@ def load_to_postgres(df: pd.DataFrame) -> None:
     conn.commit()
     conn.close()
     print(f"Loaded {len(df)} rows into raw_macro_indicators.")
+
 
 if __name__ == "__main__":
     api_key = os.getenv("FRED_API_KEY")
