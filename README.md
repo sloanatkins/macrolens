@@ -84,6 +84,16 @@ Average daily return by sector grouped by macro regime. Reveals which sectors ou
 
 ---
 
+## Power BI Dashboard
+
+A second dashboard built in Power BI on an export of the dbt mart table (mart_sector_performance). It has slicers for date range, macro regime, and sector, KPI cards for average daily return, best and worst sector, and current regime, a 30-day rolling return line chart by sector, and average daily return by sector with negative values in red.
+
+![MacroLens Power BI Dashboard](powerbi/macrolens_dashboard.png)
+
+The report file is in [powerbi/MacroLens_Dashboard.pbix](powerbi/MacroLens_Dashboard.pbix) and opens in Power BI Desktop.
+
+---
+
 ## Pipeline
 
 The Airflow DAG runs every weekday at 6am with 2 automatic retries and a 5 minute retry delay:
